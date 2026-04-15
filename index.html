@@ -185,14 +185,21 @@ let history = [];
 let histIdx = -1;
 
 const BOOT_LINES = [
-  {t: 0,   s: 'muted',  v: 'bogdan.os v20.5.0 - BIOS POST sequence'},
+  {t: 0,   s: 'muted',  v: (() => {
+    const now = new Date(), bday = new Date(2005, 8, 8);
+    let major = now.getFullYear() - bday.getFullYear();
+    let minor = now.getMonth() - bday.getMonth();
+    if (minor < 0) { major--; minor += 12; }
+    if (now.getDate() < bday.getDate()) minor = minor === 0 ? (major--, 11) : minor - 1;
+    return 'bogdan.os v' + major + '.' + minor + '.0 - BIOS POST sequence';
+  })()},
   {t: 180, s: 'muted',  v: 'CPU: brain @ 3.2GHz ... OK'},
   {t: 340, s: 'muted',  v: 'RAM: 36GB caffeine-backed storage ... OK'},
   {t: 500, s: 'muted',  v: 'DISK: /dev/projects mounted ... OK'},
   {t: 660, s: 'muted',  v: 'NET: barrie.on.ca > online'},
   {t: 820, s: 'divider', v: '─────────────────────────────────────────'},
   {t: 1000, s: 'bright', v: 'Welcome. Type `help` to see available commands.'},
-  {t: 1140, s: 'dim',   v: 'Last login: Tue Apr 14 2026'},
+  {t: 1140, s: 'dim',   v: 'Last login: ' + new Date().toDateString()},
 ];
 
 const COMMANDS = {
