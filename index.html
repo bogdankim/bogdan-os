@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+  <style>
+    @font-face {
+      font-family: 'Share Tech Mono';
+      src: url("./src/assets/fonts/ShareTechMono-Regular.ttf")
+        format("truetype");
+      font-weight: 400;
+      font-style: normal;
+      font-display: swap;
+    }
+
+    body { background: black; }
+    .crt-wrap {
+      background: #0d0d0d;
+      border-radius: 12px;
+      padding: 0;
+      overflow: hidden;
+      position: relative;
+      font-family: 'Share Tech Mono', 'Courier New', monospace;
+      max-width: 69rem;
+      margin-inline: auto;
+    }
+    .crt-screen {
+      position: relative;
+      padding: 28px 32px 32px;
+      height: 520px;
+      overflow-y: auto;
+      overflow-x: hidden;
+      scrollbar-width: thin;
+      scrollbar-color: #1f3a1f transparent;
+    }
+    .crt-screen::-webkit-scrollbar { width: 6px; }
+    .crt-screen::-webkit-scrollbar-track { background: transparent; }
+    .crt-screen::-webkit-scrollbar-thumb { background: #1f3a1f; border-radius: 3px; }
+    .crt-screen::-webkit-scrollbar-thumb:hover { background: #3a6b3a; }
+    .scanlines {
+      pointer-events: none;
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(
+        to bottom,
+        transparent 0px,
+        transparent 3px,
+        rgba(0,0,0,0.18) 3px,
+        rgba(0,0,0,0.18) 4px
+      );
+      z-index: 10;
+      border-radius: 12px;
+    }
+    .crt-titlebar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 20px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #1f3a1f;
+    }
+    .dot { width: 10px; height: 10px; border-radius: 50%; }
+    .dot-r { background: #3a1212; }
+    .dot-y { background: #3a3012; }
+    .dot-g { background: #124012; }
+    .crt-title { color: #3a6b3a; font-size: 12px; margin-left: 8px; letter-spacing: 0.08em; }
+    .output { color: #a8d8a8; font-size: 14px; line-height: 1.7; white-space: pre-wrap; }
+    .output-dim { color: #4a7a4a; font-size: 14px; line-height: 1.7; white-space: pre-wrap; }
+    .output-bright { color: #c8f0c8; font-size: 14px; line-height: 1.7; font-weight: 500; white-space: pre-wrap; }
+    .output-muted { color: #3a6b3a; font-size: 13px; line-height: 1.6; white-space: pre-wrap; }
+    .prompt-line {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      margin-top: 6px;
+    }
+    .prompt-text { color: #5bc05b; font-size: 14px; white-space: pre-wrap; }
+    .prompt-input {
+      background: transparent;
+      border: none;
+      outline: none;
+      color: #c8f0c8;
+      font-family: 'Share Tech Mono', 'Courier New', monospace;
+      font-size: 14px;
+      flex: 1;
+      caret-color: #5bc05b;
+      padding: 0;
+      margin: 0;
+    }
+    .cursor-blink {
+      display: inline-block;
+      width: 8px;
+      height: 14px;
+      background: #5bc05b;
+      animation: blink 1s step-end infinite;
+      vertical-align: middle;
+      margin-left: 1px;
+    }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+    .history { margin-bottom: 4px; }
+    .tag { color: #5bc05b; font-size: 13px; }
+    .tag-dim { color: #2e5c2e; font-size: 13px; }
+    .section-head { color: #7ad07a; font-size: 14px; margin: 2px 0; }
+    .err { color: #c05b5b; font-size: 14px; }
+    .divider { color: #1f3a1f; font-size: 14px; user-select: none; }
+    .quick-cmds {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 14px;
+      padding-top: 12px;
+      border-top: 1px solid #1a301a;
+    }
+    .cmd-btn {
+      background: #0f1f0f;
+      border: 1px solid #1f3a1f;
+      border-radius: 4px;
+      color: #5bc05b;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 12px;
+      padding: 4px 10px;
+      cursor: pointer;
+      transition: background 0.1s, border-color 0.1s;
+    }
+    .cmd-btn:hover { background: #162b16; border-color: #3a6b3a; color: #a8d8a8; }
+  </style>
+</head>
+<body>
+<div class="crt-wrap">
+  <div class="crt-screen" id="screen">
+    <div class="scanlines"></div>
+    <div class="crt-titlebar">
+      <div class="dot dot-r"></div>
+      <div class="dot dot-y"></div>
+      <div class="dot dot-g"></div>
+      <span class="crt-title">bogdan@barrie ~ bash</span>
+    </div>
+    <div id="output"></div>
+    <div class="prompt-line" id="prompt-row" style="display:none">
+      <span class="prompt-text">bogdan@barrie:~$&nbsp;</span>
+      <input class="prompt-input" id="cmd-input" autocomplete="off" spellcheck="false" autofocus />
+    </div>
+    <div class="quick-cmds" id="quick-cmds" style="display:none">
+      <button class="cmd-btn" onclick="runCmd('whoami')">whoami</button>
+      <button class="cmd-btn" onclick="runCmd('ls projects/')">ls projects/</button>
+      <button class="cmd-btn" onclick="runCmd('cat stack.txt')">cat stack.txt</button>
+      <button class="cmd-btn" onclick="runCmd('git log --oneline')">git log</button>
+      <button class="cmd-btn" onclick="runCmd('contact --info')">contact</button>
+      <button class="cmd-btn" onclick="runCmd('easter-egg')">???</button>
+      <button class="cmd-btn" onclick="runCmd('help')">help</button>
+      <button class="cmd-btn" onclick="runCmd('clear')">clear</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const out = document.getElementById('output');
+const input = document.getElementById('cmd-input');
+const promptRow = document.getElementById('prompt-row');
+const quickCmds = document.getElementById('quick-cmds');
+const screen = document.getElementById('screen');
+
+const LINE_HEIGHT = Math.round(14 * 1.7);
+
+function scrollToBottom() {
+  screen.scrollTop = screen.scrollHeight;
+}
+
+let scrollReady = true;
+screen.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  if (!scrollReady) return;
+  scrollReady = false;
+  const direction = e.deltaY > 0 ? 1 : -1;
+  screen.scrollTop += direction * LINE_HEIGHT;
+  setTimeout(() => { scrollReady = true; }, 20);
+}, { passive: false });
+
+let booted = false;
+let history = [];
+let histIdx = -1;
+
+const BOOT_LINES = [
+  {t: 0,   s: 'muted',  v: 'bogdan.os v20.5.0 - BIOS POST sequence'},
+  {t: 180, s: 'muted',  v: 'CPU: brain @ 3.2GHz ... OK'},
+  {t: 340, s: 'muted',  v: 'RAM: 36GB caffeine-backed storage ... OK'},
+  {t: 500, s: 'muted',  v: 'DISK: /dev/projects mounted ... OK'},
+  {t: 660, s: 'muted',  v: 'NET: barrie.on.ca > online'},
+  {t: 820, s: 'divider', v: '─────────────────────────────────────────'},
+  {t: 1000, s: 'bright', v: 'Welcome. Type `help` to see available commands.'},
+  {t: 1140, s: 'dim',   v: 'Last login: Tue Apr 14 2026'},
+];
+
+const COMMANDS = {
+  whoami: () => [
+    {s:'bright', v:'bogdan - software engineer + curious human'},
+    {s:'out',    v:''},
+    {s:'out',    v:'Location  >  Barrie, ON, Canada'},
+    {s:'out',    v:'Work      >  remote contractor @ US startup'},
+    {s:'out',    v:'Stack     >  JS/TS all day, Python when needed'},
+    {s:'out',    v:'Started   >  Dec 2024'},
+    {s:'out',    v:''},
+    {s:'dim',    v:'"I build things, break them, then build them better."'},
+  ],
+  'ls projects/': () => [
+    {s:'section', v:'drwxr-xr-x  salesvue/'},
+    {s:'out',     v:'  # SaaS dashboard - Vue 3, Nuxt, Express, MySQL'},
+    {s:'section', v:'drwxr-xr-x  setter.ai/'},
+    {s:'out',     v:'  # SaaS AI SDR that books appointments - Vue 3, Nuxt, Express, MySQL'},
+    {s:'section', v:'drwxr-xr-x  chatresume/'},
+    {s:'out',     v:'  # AI resume generater - Vue 3, Golang, PostgreSQL, Stripe'},
+    {s:'section', v:'drwxr-xr-x  statement-parser/'},
+    {s:'out',     v:'  # AI bank statement parser - Nuxt, Nitro server'},
+    {s:'section', v:'drwxr-xr-x  this-portfolio/'},
+    {s:'out',     v:'  # you\'re looking at it - vanilla html/css/js'},
+    {s:'out',     v:''},
+    {s:'dim',     v:'5 directories, 0 excuses'},
+  ],
+  'cat stack.txt': () => [
+    {s:'bright', v:'# frontend'},
+    {s:'out',    v:'Vue 3 - Nuxt - TypeScript - Tailwind - shadcn-vue'},
+    {s:'out',    v:''},
+    {s:'bright', v:'# backend'},
+    {s:'out',    v:'Node.js - Express - MySQL - REST'},
+    {s:'out',    v:''},
+    {s:'bright', v:'# other'},
+    {s:'out',    v:'Python - DSPy - Git - Linux - tmux - neovim btw'},
+    {s:'out',    v:''},
+    {s:'dim',    v:'learning: more every week'},
+  ],
+  'git log --oneline': () => [
+    {s:'tag',    v:'7d2e804'},
+    {s:'out',    v:'  fix: SQL query optimization, 99% faster load times (90s to <1s)'},
+    {s:'tag',    v:'1bc0e19'},
+    {s:'out',    v:'  chore: set up ai DSPY sales appointment status automation (Python microsecvice)'},
+    {s:'tag',    v:'9a1f3d6'},
+    {s:'out',    v:'  refactor: full frontend rewrite with best practices and ultra-clean UI/UX + figma design'},
+    {s:'tag',    v:'0e8a22f'},
+    {s:'out',    v:'  init: started the whole thing, somehow'},
+  ],
+  'contact --info': () => [
+    {s:'bright', v:'# get in touch'},
+    {s:'out',    v:''},
+    {s:'out',    v:'Email   >  hello@bogdankim.com'},
+    {s:'out',    v:'GitHub  >  github.com/bogdankim'},
+    {s:'out',    v:'CV      >  bogdankim.com/resume.pdf'},
+    {s:'out',    v:''},
+    {s:'dim',    v:'Response time: usually fast. Depends on the gym.'},
+  ],
+  'easter-egg': () => [
+    {s:'bright', v:'unlocking hidden stats...'},
+    {s:'out',    v:''},
+    {s:'out',    v:'Bench PR      >  getting there'},
+    {s:'out',    v:'Current bulk  >  ~95kg > targeting 100kg'},
+    {s:'out',    v:'Muay Thai     >  2x/week, fundamentals class'},
+    {s:'out',    v:'Dog           >  golden retriever puppy, chaotic good'},
+    {s:'out',    v:'Guitar        >  minor pentatonic, learning by ear'},
+    {s:'out',    v:'Languages     >  EN, RU, ES (Duolingo streak: alive)'},
+    {s:'out',    v:'Car           >  2017 Mazda 3 GT Hatch, manual, obv'},
+    {s:'out',    v:''},
+    {s:'dim',    v:'congrats. you found the good stuff.'},
+  ],
+  help: () => [
+    {s:'bright', v:'available commands:'},
+    {s:'out',    v:''},
+    {s:'out',    v:'whoami              > who is this guy'},
+    {s:'out',    v:'ls projects/        > what has he built'},
+    {s:'out',    v:'cat stack.txt       > what does he build with'},
+    {s:'out',    v:'git log --oneline   > recent work highlights'},
+    {s:'out',    v:'contact --info      > how to reach him'},
+    {s:'out',    v:'easter-egg          > hidden stats (shh)'},
+    {s:'out',    v:'clear               > wipe the screen'},
+    {s:'out',    v:''},
+    {s:'dim',    v:'tip: click the buttons below or type a command'},
+  ],
+  clear: () => '__clear__',
+};
+
+function line(s, v) {
+  const d = document.createElement('div');
+  d.className = 'history';
+  const sp = document.createElement('span');
+  sp.textContent = v === '' ? '\u00a0' : v;
+  if (s === 'bright') sp.className = 'output-bright';
+  else if (s === 'dim') sp.className = 'output-dim';
+  else if (s === 'muted') sp.className = 'output-muted';
+  else if (s === 'section') sp.className = 'section-head';
+  else if (s === 'tag') sp.className = 'tag';
+  else if (s === 'tag-dim') sp.className = 'tag-dim';
+  else if (s === 'divider') { sp.className = 'divider'; }
+  else if (s === 'err') sp.className = 'err';
+  else sp.className = 'output';
+  d.appendChild(sp);
+  out.appendChild(d);
+  scrollToBottom();
+}
+
+function printLines(lines, i, cb) {
+  if (i >= lines.length) { if (cb) cb(); return; }
+  const l = lines[i];
+  line(l.s, l.v);
+  setTimeout(() => printLines(lines, i + 1, cb), 28);
+}
+
+function addPromptLine(cmd) {
+  const d = document.createElement('div');
+  d.className = 'history';
+  d.innerHTML = '<span class="prompt-text">bogdan@barrie:~$&nbsp;</span><span class="output-bright">' + escHtml(cmd) + '</span>';
+  out.appendChild(d);
+  scrollToBottom();
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function runCmd(cmd) {
+  cmd = cmd.trim();
+  if (!cmd) {
+    addPromptLine("")
+    return;
+  }
+  if (!booted) return;
+  history.unshift(cmd);
+  histIdx = -1;
+  addPromptLine(cmd);
+  input.value = '';
+
+  const fn = COMMANDS[cmd];
+  if (!fn) {
+    line('err', 'command not found: ' + cmd + ' — try `help`');
+    return;
+  }
+  const result = fn();
+  if (result === '__clear__') {
+    out.innerHTML = '';
+    return;
+  }
+  printLines(result, 0);
+}
+
+input.addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    scrollToBottom()
+    runCmd(input.value);
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (histIdx < history.length - 1) histIdx++;
+    input.value = history[histIdx] || '';
+  } else if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    if (histIdx > 0) histIdx--;
+    else { histIdx = -1; input.value = ''; }
+    if (histIdx >= 0) input.value = history[histIdx];
+  }
+});
+
+document.querySelector('.crt-wrap').addEventListener('click', () => input.focus());
+
+function boot() {
+  let maxT = 0;
+  BOOT_LINES.forEach(l => {
+    setTimeout(() => line(l.s, l.v), l.t);
+    if (l.t > maxT) maxT = l.t;
+  });
+  setTimeout(() => {
+    line('out', '');
+    promptRow.style.display = 'flex';
+    quickCmds.style.display = 'flex';
+    booted = true;
+    input.focus();
+  }, maxT + 180);
+}
+
+boot();
+</script>
+</body>
+</html>
+
+
